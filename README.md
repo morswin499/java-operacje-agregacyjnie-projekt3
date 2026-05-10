@@ -68,3 +68,10 @@ W trybie równoległym widoczne jest pełne obciążenie wszystkich wątków w p
 
 ## Podsumowanie
 Analiza wykazała, że strumienie równoległe są potężnym narzędziem optymalizacyjnym w języku Java, o ile zbiór danych jest wystarczająco duży, by zniwelować narzut związany z zarządzaniem wątkami. Kluczowym czynnikiem sukcesu jest unikanie współdzielenia stanów modyfikowalnych oraz świadomość kosztów operacji stanowych w środowisku rozproszonym.
+
+## Autorzy
+- Mateusz Moskwin
+- Beniamin Raczyński
+- Monika Szczerba
+- Kacper Marciniak
+- Maciej Wojnowski
