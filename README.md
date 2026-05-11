@@ -2,72 +2,71 @@
 **Przedmiot:** Programowanie współbieżne w języku JAVA
 
 ## O projekcie
-Celem projektu jest poznanie sposobu zrównoleglonego rozwiązywania problemów programistycznych z wykorzystaniem strumieni danych (`Stream API`). Aplikacja pozwala na porównanie wydajności klasycznego, sekwencyjnego przetwarzania danych z podejściem zrównoleglonym, wykorzystującym wszystkie dostępne zasoby procesora.
+Celem projektu jest analiza wydajnościowa zrównoleglonego przetwarzania danych z wykorzystaniem `parallelStream()`. Aplikacja symuluje system analityczny dla transakcji finansowych, który musi przefiltrować miliony rekordów i wykonać złożone operacje matematyczne (symulacja obciążenia procesora).
 
 Projekt demonstruje:
-1. **Przetwarzanie potokowe:** Zastosowanie operacji `filter`, `map` oraz `sorted` w ramach jednego łańcucha wywołań.
-2. **Automatyczne zrównoleglenie:** Przekształcenie strumienia za pomocą metody `parallelStream()` i wykorzystanie wspólnej puli wątków.
-3. **Analizę wydajnościową:** Porównanie czasu wykonania operacji na dużym zbiorze danych (10 mln rekordów) przy użyciu profilera.
+1. **Przetwarzanie potokowe:** Wykorzystanie trzech operacji pośrednich: podwójnej filtracji (fraud/waluta) oraz złożonego mapowania.
+2. **Monitoring wątków:** Dynamiczne wyłapywanie nazw wątków biorących udział w obliczeniach przy użyciu `ConcurrentHashMap`.
+3. **Analizę obciążenia:** Symulację ciężkich obliczeń podatkowych przy użyciu funkcji trygonometrycznych, co pozwala zauważyć realny zysk z wielowątkowości.
 
 ## Instrukcja uruchomienia i testowania
-Główną klasą aplikacji jest `StreamAnalyzer.java`. Program generuje syntetyczny zbiór transakcji, a następnie wykonuje na nich operacje agregacyjne.
+Główną klasą aplikacji jest `StreamAggregateProject.java`. 
 
 Aby przetestować aplikację:
-1. Wewnątrz metody `main` w pliku `StreamAnalyzer.java` znajdź zmienną `MODE`:
-   - `int MODE = 0;` – Uruchamia standardowy strumień sekwencyjny (`stream()`).
-   - `int MODE = 1;` – Uruchamia strumień równoległy (`parallelStream()`).
-2. Parametr `DATA_SIZE` określa liczbę generowanych obiektów (domyślnie 10 000 000 dla wyraźnych wyników pomiarowych).
-3. Po zakończeniu operacji program wyświetli czas wykonania w milisekundach oraz statystyki dotyczące wykorzystanej puli wątków.
+1. Wewnątrz metody `main` znajdź zmienną `MODE`:
+   - `int MODE = 0;` – Tryb sekwencyjny: całość wykonuje jeden wątek (main).
+   - `int MODE = 1;` – Tryb równoległy: zadania są rozdzielane na pulę ForkJoinPool.
+2. Parametr `DATA_SIZE` jest ustawiony na 5 000 000 rekordów, co stanowi odpowiednio dużą próbkę testową.
+3. Po uruchomieniu program wypisze:
+   - Czas wykonania operacji.
+   - Liczbę przefiltrowanych transakcji.
+   - **Listę wszystkich wątków**, które uczestniczyły w przetwarzaniu strumienia.
 
 ## Analiza techniczna
 
-### Porównanie strumieni standardowych i równoległych
-W trybie sekwencyjnym (`MODE = 0`) operacje są wykonywane krok po kroku w głównym wątku aplikacji. Przy dużych zbiorach danych i złożonych operacjach (jak sortowanie), czas wykonania jest znacznie dłuższy. W trybie równoległym (`MODE = 1`) Java dzieli zbiór danych na części, które są procesowane jednocześnie na wielu rdzeniach procesora, co pozwala na znaczące skrócenie czasu operacji przy odpowiednio dużym $N$.
+### Operacje pośrednie (Intermediate Operations)
+W kodzie zaimplementowano trzy kluczowe kroki przetwarzania:
+1. **`.filter(t -> !t.isFraudulent)`**: Odsianie transakcji oznaczonych jako oszustwa.
+2. **`.filter(t -> t.currency.equals("USD") || t.currency.equals("EUR"))`**: Selekcja transakcji w konkretnych walutach.
+3. **`.map(...)`**: Wywołanie metody `simulateHeavyTaxCalculation`, która dzięki pętli z funkcjami `Math.hypot` i `Math.cos` sztucznie zwiększa koszt $Q$ (obliczeniowy) każdego elementu.
 
-### Charakterystyka wątków w parallelStream
-Współbieżne operacje na strumieniach wykorzystują systemową pulę **ForkJoinPool.commonPool**. 
-- **Liczba wątków:** Jest ona determinowana przez liczbę dostępnych procesorów logicznych (zazwyczaj $N-1$).
-- **Typ wątków:** Są to wątki typu daemon, co oznacza, że działają w tle i nie blokują zakończenia procesu głównego.
-- **Efektywność:** Dzięki mechanizmowi work-stealing, wątki, które szybciej ukończyły swoje pod-zadania, pomagają w przetwarzaniu pozostałych części danych.
+### Charakterystyka wątków
+Dzięki zastosowaniu zbioru `threadNames`, program udowadnia wykorzystanie puli **ForkJoinPool.commonPool**. 
+- W trybie sekwencyjnym na liście pojawi się tylko jeden wątek: `main`.
+- W trybie równoległym program wylistuje wątki typu `ForkJoinPool.commonPool-worker-X`. 
+- Liczba tych wątków zazwyczaj odpowiada liczbie rdzeni logicznych procesora pomniejszonej o jeden (gdyż wątek `main` również włącza się do pracy).
 
-### Model NQ i wydajność
-Wydajność została przeanalizowana w oparciu o model NQ, gdzie N to liczba elementów, a Q to koszt obliczeniowy pojedynczej operacji. Zaobserwowano, że:
-- Dla operacji bezstanowych (np. `filter`, `map`) wzrost wydajności jest niemal liniowy względem liczby rdzeni.
-- Operacje stanowe (np. `sorted`) generują dodatkowy narzut w trybie równoległym ze względu na konieczność synchronizacji i scalania wyników, jednak przy 10 mln rekordów zysk z równoległego sortowania pozostaje zauważalny.
+### Wydajność i Profilowanie (VisualVM)
+Dzięki metodzie `simulateHeavyTaxCalculation`, obciążenie procesora jest bardzo wyraźne. 
 
-### Profilowanie wydajności (VisualVM)
-
-Przebiegi zużycia procesora dla obu trybów:
-
-| Tryb sekwencyjny (stream) | Tryb równoległy (parallel) |
-| ------------------------- | -------------------------- |
-| ![CPU Sekwencyjny](./assets/cpu_seq.png) | ![CPU Równoległy](./assets/cpu_par.png) |
-
-W trybie równoległym widoczne jest pełne obciążenie wszystkich wątków w puli `ForkJoinPool`, co przekłada się na gwałtowny wzrost utylizacji procesora (do 80-100%) przy jednoczesnym drastycznym skróceniu czasu trwania operacji w porównaniu do trybu jednowątkowego.
+| Tryb pracy | Obserwowane zachowanie |
+| ---------- | ---------------------- |
+| **Sekwencyjny** | Wykorzystanie CPU na poziomie jednego rdzenia. Długi czas oczekiwania. |
+| **Równoległy** | Gwałtowny skok użycia wszystkich rdzeni (blisko 100%). Czas wykonania krótszy o ok. 60-80% (zależnie od liczby rdzeni). |
 
 ## Lista zadań (TODO)
 
-### Faza 1: Architektura i bazowa logika
-- [ ] Implementacja klasy modelu `Transaction` z odpowiednimi polami.
-- [ ] Stworzenie generatora syntetycznych danych o dużej skali.
-- [ ] Implementacja bazowego potoku operacji (filter -> map -> sorted).
+### Faza 1: Architektura i dane
+- [x] Definicja klasy `Transaction` z polami `amount`, `currency` i `isFraudulent`.
+- [x] Implementacja wydajnego generatora danych opartego o klasę `Random`.
+- [x] Stworzenie metody symulującej ciężkie obliczenia (`simulateHeavyTaxCalculation`).
 
-### Faza 2: Implementacja strumieni
-- [ ] Przetwarzanie danych za pomocą metody `stream()`.
-- [ ] Przetwarzanie danych za pomocą metody `parallelStream()`.
-- [ ] Implementacja logiki zbierania statystyk o użytej puli wątków.
+### Faza 2: Implementacja Stream API
+- [x] Przekształcenie kolekcji w strumień sekwencyjny (`stream()`).
+- [x] Przekształcenie kolekcji w strumień równoległy (`parallelStream()`).
+- [x] Zastosowanie mechanizmu monitorowania nazw wątków wewnątrz potoku.
 
-### Faza 3: Profilowanie i Analiza
-- [ ] Pomiary czasu dla różnych wielkości zbiorów danych.
-- [ ] Rejestracja przebiegów CPU w narzędziu VisualVM.
-- [ ] Porównanie wyników i analiza narzutu operacji `sorted()`.
+### Faza 3: Analiza i Raportowanie
+- [x] Porównanie czasów wykonania (milisekundy).
+- [x] Weryfikacja liczby aktywnych wątków dla trybu równoległego.
+- [x] Przygotowanie wniosków dotyczących zysku wydajnościowego.
 
 ### Faza 4: Dokumentacja
 - [ ] Wyciągnięcie wniosków na temat opłacalności zrównoleglania.
 - [ ] Przygotowanie finalnego sprawozdania.
 
 ## Podsumowanie
-Analiza wykazała, że strumienie równoległe są potężnym narzędziem optymalizacyjnym w języku Java, o ile zbiór danych jest wystarczająco duży, by zniwelować narzut związany z zarządzaniem wątkami. Kluczowym czynnikiem sukcesu jest unikanie współdzielenia stanów modyfikowalnych oraz świadomość kosztów operacji stanowych w środowisku rozproszonym.
+Implementacja dowiodła, że przy operacjach wymagających dużych nakładów obliczeniowych na każdym elemencie (wysokie $Q$), `parallelStream()` oferuje niemal liniowe przyspieszenie. Wykorzystanie `ConcurrentHashMap` do monitorowania wątków potwierdziło, że Java efektywnie zarządza pulą wątków roboczych, minimalizując czas bezczynności procesora.
 
 ## Autorzy
 - Mateusz Moskwin
