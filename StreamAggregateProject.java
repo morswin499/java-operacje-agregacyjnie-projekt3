@@ -22,7 +22,7 @@ public class StreamAggregateProject {
     }
 
     public static void main(String[] args) {
-        // Wygenerowanie syntetycznie bardzo dużego zbioru danych
+        // Wygenerowanie syntetyczne bardzo dużego zbioru danych
         int DATA_SIZE = 5_000_000; // 5 milionów obiektów
         System.out.println("Generowanie " + DATA_SIZE + " transakcji...");
 
@@ -32,7 +32,7 @@ public class StreamAggregateProject {
 
         for (int i = 0; i < DATA_SIZE; i++) {
             // 5% szans na fraud
-            boolean isFraud = random.nextDouble() > 0.95;
+            boolean isFraud = random.nextInt(100) < 5;
             transactions.add(new Transaction(i, random.nextDouble() * 10000,
                     currencies[random.nextInt(currencies.length)], isFraud));
         }
